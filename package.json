@@ -8,18 +8,31 @@
   "license": "MIT",
   "commands": [
     {
-      "name": "index",
-      "title": "Show List and Detail",
-      "description": "Template for showing a static list and a detail view",
+      "name": "search-servers",
+      "title": "Search Servers",
+      "icon": "list-servers.png",
+      "description": "View the servers in your Ottomatic account",
+      "mode": "view"
+    },
+    {
+      "name": "search-favorites",
+      "title": "Search Favorites",
+      "icon": "list-favs.png",
+      "description": "View your favorites in your Ottomatic account",
       "mode": "view"
     }
   ],
   "dependencies": {
     "@raycast/api": "^1.69.0",
-    "cross-fetch": "^4.0.0"
+    "@raycast/utils": "^1.14.0",
+    "cross-fetch": "^4.0.0",
+    "jose": "^5.2.4",
+    "lodash": "^4.17.21",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@raycast/eslint-config": "^1.0.6",
+    "@types/lodash": "^4.17.0",
     "@types/node": "20.8.10",
     "@types/react": "18.2.27",
     "eslint": "^8.51.0",

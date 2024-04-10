@@ -1,8 +1,16 @@
-import { OAuth } from "@raycast/api";
+import { OAuth, Cache } from "@raycast/api";
+import { useCachedPromise } from "@raycast/utils";
 import { fetch } from "cross-fetch";
+import { decodeJwt } from "jose";
+import { z } from "zod";
 
-const clientId = "knPOnlv1o1yv2NQf";
-const authBaseUrl = "https://clerk.ottomatic.cloud";
+export const cache = new Cache({ namespace: "ottomatic" });
+
+const isDev = process.env.NODE_ENV === "development";
+const clientId = isDev ? "xONriBaQdRwxkE53" : "knPOnlv1o1yv2NQf";
+const authBaseUrl = isDev ? "https://humble-urchin-18.clerk.accounts.dev" : "https://clerk.ottomatic.cloud";
+export const ottomaticBaseUrl = isDev ? "http://localhost:3060" : "https://api.ottomatic.cloud";
+export const apiBaseUrl = ottomaticBaseUrl + "/api/v0";
 
 const client = new OAuth.PKCEClient({
   redirectMethod: OAuth.RedirectMethod.Web,
@@ -10,14 +18,13 @@ const client = new OAuth.PKCEClient({
   description: "Sign in with Ottomatic",
 });
 
-export async function authorize(): Promise<void> {
+async function getAccessToken(): Promise<{ accessToken: string }> {
   const tokenSet = await client.getTokens();
   if (tokenSet?.accessToken) {
-    console.log("tokenSet:", tokenSet);
     if (tokenSet.refreshToken && tokenSet.isExpired()) {
       await client.setTokens(await refreshTokens(tokenSet.refreshToken));
     }
-    return;
+    return { accessToken: tokenSet.accessToken };
   }
 
   const authRequest = await client.authorizationRequest({
@@ -27,7 +34,9 @@ export async function authorize(): Promise<void> {
     scope: "email private_metadata profile public_metadata",
   });
   const { authorizationCode } = await client.authorize(authRequest);
-  await client.setTokens(await fetchTokens(authRequest, authorizationCode));
+  const tokenResp = await fetchTokens(authRequest, authorizationCode);
+  await client.setTokens(tokenResp);
+  return { accessToken: tokenResp.access_token };
 }
 
 async function fetchTokens(authRequest: OAuth.AuthorizationRequest, authCode: string): Promise<OAuth.TokenResponse> {
@@ -68,4 +77,56 @@ async function refreshTokens(refreshToken: string): Promise<OAuth.TokenResponse>
   const tokenResponse = (await response.json()) as OAuth.TokenResponse;
   tokenResponse.refresh_token = tokenResponse.refresh_token ?? refreshToken;
   return tokenResponse;
+}
+
+export async function getJWT(): Promise<string> {
+  const jwt = cache.get("jwt");
+  if (jwt) {
+    // if not expired, return it
+    const { exp } = decodeJwt(jwt);
+    if (!!exp && exp * 1000 > Date.now()) {
+      return jwt;
+    }
+  }
+
+  const { accessToken } = await getAccessToken();
+  const data = await fetch(`${apiBaseUrl}/login`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  }).then((res) => res.json());
+  cache.set("jwt", data.token);
+
+  return data.token;
+}
+
+export function useJWT() {
+  const { data: jwt, ...rest } = useCachedPromise(getJWT, [], {
+    initialData: cache.get("jwt"),
+    keepPreviousData: true,
+  });
+
+  if (!jwt) {
+    return { data: undefined, ...rest };
+  }
+  const deocded = decodeJwt(jwt);
+  const data = z
+    .object({
+      memberships: z.array(
+        z.object({
+          id: z.string(),
+          organization: z.object({
+            id: z.string(),
+            name: z.string(),
+            slug: z.string(),
+            imageUrl: z.string(),
+            hasImage: z.boolean(),
+          }),
+          role: z.string(),
+        }),
+      ),
+    })
+    .or(z.undefined())
+    .catch(undefined)
+    .parse(deocded);
+
+  return { data, ...rest };
 }
