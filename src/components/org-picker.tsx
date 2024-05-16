@@ -1,5 +1,5 @@
 import { List } from "@raycast/api";
-import { useJWT } from "../services/ottomatic";
+import { useJWT } from "../lib/ottomatic";
 import { useCachedState } from "@raycast/utils";
 
 export default function useOrgPicker() {
@@ -8,7 +8,7 @@ export default function useOrgPicker() {
   const membership = data?.memberships.find((membership) => membership.organization.id === selectedOrg);
 
   const OrgPicker = (
-    <List.Dropdown tooltip="Select Organization" storeValue value={selectedOrg} onChange={(val) => setSelectedOrg(val)}>
+    <List.Dropdown tooltip="Select Organization" value={selectedOrg} onChange={(val) => setSelectedOrg(val)}>
       {data?.memberships.map((membership) => (
         <List.Dropdown.Item
           value={membership.organization.id}

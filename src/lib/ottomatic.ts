@@ -3,14 +3,11 @@ import { useCachedPromise } from "@raycast/utils";
 import { fetch } from "cross-fetch";
 import { decodeJwt } from "jose";
 import { z } from "zod";
+import { apiBaseUrl, authBaseUrl, clientId } from "./constants";
 
 export const cache = new Cache({ namespace: "ottomatic" });
 
-const isDev = process.env.NODE_ENV === "development";
-const clientId = isDev ? "xONriBaQdRwxkE53" : "knPOnlv1o1yv2NQf";
-const authBaseUrl = isDev ? "https://humble-urchin-18.clerk.accounts.dev" : "https://clerk.ottomatic.cloud";
-export const ottomaticBaseUrl = isDev ? "http://localhost:3060" : "https://api.ottomatic.cloud";
-export const apiBaseUrl = ottomaticBaseUrl + "/api/v0";
+// const ottomaticClient = hc<AppType>({ baseUrl: apiBaseUrl });
 
 const client = new OAuth.PKCEClient({
   redirectMethod: OAuth.RedirectMethod.Web,
@@ -22,8 +19,10 @@ async function getAccessToken(): Promise<{ accessToken: string }> {
   const tokenSet = await client.getTokens();
   if (tokenSet?.accessToken) {
     if (tokenSet.refreshToken && tokenSet.isExpired()) {
+      console.log("oauth expired, refreshing tokens");
       await client.setTokens(await refreshTokens(tokenSet.refreshToken));
     }
+
     return { accessToken: tokenSet.accessToken };
   }
 
@@ -48,16 +47,23 @@ async function fetchTokens(authRequest: OAuth.AuthorizationRequest, authCode: st
   params.append("response_type", "code");
   params.append("redirect_uri", authRequest.redirectURI);
 
-  const response = await fetch(`${authBaseUrl}/oauth/token`, {
+  const data = await fetch(`${authBaseUrl}/oauth/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: params,
-  });
-  if (!response.ok) {
-    console.error("fetch tokens error:", await response.text());
-    throw new Error(response.statusText);
-  }
-  return (await response.json()) as OAuth.TokenResponse;
+  })
+    .then((res) => {
+      if (!res.ok) {
+        console.error("fetch tokens error", res.statusText);
+        throw new Error(res.statusText);
+      }
+      return res.json();
+    })
+    .catch((e) => {
+      console.error("fetch tokens error", e);
+      throw e;
+    });
+  return data as OAuth.TokenResponse;
 }
 
 async function refreshTokens(refreshToken: string): Promise<OAuth.TokenResponse> {
@@ -66,15 +72,23 @@ async function refreshTokens(refreshToken: string): Promise<OAuth.TokenResponse>
   params.append("refresh_token", refreshToken);
   params.append("grant_type", "refresh_token");
 
-  const response = await fetch(`${authBaseUrl}/oauth/token`, {
+  const data = await fetch(`${authBaseUrl}/oauth/token`, {
     method: "POST",
     body: params,
-  });
-  if (!response.ok) {
-    console.error("refresh tokens error:", await response.text());
-    throw new Error(response.statusText);
-  }
-  const tokenResponse = (await response.json()) as OAuth.TokenResponse;
+  })
+    .then((res) => {
+      if (!res.ok) {
+        console.error("refresh tokens error", res.statusText);
+        throw new Error(res.statusText);
+      }
+      return res.json();
+    })
+    .catch((e) => {
+      console.error("refresh tokens error", e);
+      throw e;
+    });
+  const tokenResponse = data as OAuth.TokenResponse;
+
   tokenResponse.refresh_token = tokenResponse.refresh_token ?? refreshToken;
   return tokenResponse;
 }
@@ -85,14 +99,29 @@ export async function getJWT(): Promise<string> {
     // if not expired, return it
     const { exp } = decodeJwt(jwt);
     if (!!exp && exp * 1000 > Date.now()) {
+      console.log("jwt is not expired, returning cached");
       return jwt;
     }
   }
 
+  console.log("jwt is expired or not found, fetching new one");
   const { accessToken } = await getAccessToken();
+  console.log("got access token", accessToken);
   const data = await fetch(`${apiBaseUrl}/login`, {
     headers: { Authorization: `Bearer ${accessToken}` },
-  }).then((res) => res.json());
+  })
+    .then((res) => {
+      if (!res.ok) {
+        console.error("fetch jwt error:", res.statusText);
+        throw new Error(res.statusText);
+      }
+      return res.json();
+    })
+    .catch((e) => {
+      console.error("fetch jwt error:", e);
+      throw e;
+    });
+
   cache.set("jwt", data.token);
 
   return data.token;

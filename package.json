@@ -4,9 +4,17 @@
   "title": "Ottomatic",
   "description": "Manage your Ottomatic servers and projects",
   "icon": "command-icon.png",
+  "owner": "proof",
   "author": "eluce2",
   "license": "MIT",
   "commands": [
+    {
+      "name": "search-projects",
+      "title": "Search Projects",
+      "icon": "list-projects.png",
+      "description": "View the projects in your Ottomatic account",
+      "mode": "view"
+    },
     {
       "name": "search-servers",
       "title": "Search Servers",
@@ -32,6 +40,7 @@
   },
   "devDependencies": {
     "@raycast/eslint-config": "^1.0.6",
+    "@types/bun": "^1.0.12",
     "@types/lodash": "^4.17.0",
     "@types/node": "20.8.10",
     "@types/react": "18.2.27",
