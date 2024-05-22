@@ -32,7 +32,13 @@ async function getAccessToken(): Promise<{ accessToken: string }> {
     extraParameters: { response_type: "code" },
     scope: "email private_metadata profile public_metadata",
   });
+  console.log("got auth request", authRequest);
+
+  console.log("authorizing client...");
   const { authorizationCode } = await client.authorize(authRequest);
+  console.log("got authorization code", authorizationCode);
+
+  console.log("fetching tokens...");
   const tokenResp = await fetchTokens(authRequest, authorizationCode);
   await client.setTokens(tokenResp);
   return { accessToken: tokenResp.access_token };
@@ -93,7 +99,8 @@ async function refreshTokens(refreshToken: string): Promise<OAuth.TokenResponse>
   return tokenResponse;
 }
 
-export async function getJWT(): Promise<string> {
+let fetchingJWT = false;
+async function getJWT(): Promise<string> {
   const jwt = cache.get("jwt");
   if (jwt) {
     // if not expired, return it
@@ -104,27 +111,38 @@ export async function getJWT(): Promise<string> {
     }
   }
 
-  console.log("jwt is expired or not found, fetching new one");
-  const { accessToken } = await getAccessToken();
-  console.log("got access token", accessToken);
-  const data = await fetch(`${apiBaseUrl}/login`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-    .then((res) => {
-      if (!res.ok) {
-        console.error("fetch jwt error:", res.statusText);
-        throw new Error(res.statusText);
-      }
-      return res.json();
+  if (fetchingJWT) {
+    console.log("jwt is already being fetched, waiting for it");
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    return getJWT();
+  }
+
+  fetchingJWT = true;
+  try {
+    console.log("jwt is expired or not found, fetching new one");
+    const { accessToken } = await getAccessToken();
+    console.log("got access token", accessToken);
+    const data = await fetch(`${apiBaseUrl}/login`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
     })
-    .catch((e) => {
-      console.error("fetch jwt error:", e);
-      throw e;
-    });
+      .then((res) => {
+        if (!res.ok) {
+          console.error("fetch jwt error:", res.statusText);
+          throw new Error(res.statusText);
+        }
+        return res.json();
+      })
+      .catch((e) => {
+        console.error("fetch jwt error:", e);
+        throw e;
+      });
 
-  cache.set("jwt", data.token);
+    cache.set("jwt", data.token);
 
-  return data.token;
+    return data.token;
+  } finally {
+    fetchingJWT = false;
+  }
 }
 
 export function useJWT() {
@@ -134,21 +152,25 @@ export function useJWT() {
   });
 
   if (!jwt) {
-    return { data: undefined, ...rest };
+    return { data: undefined, rawJWT: null, ...rest };
   }
   const deocded = decodeJwt(jwt);
+
   const data = z
     .object({
       memberships: z.array(
         z.object({
           id: z.string(),
-          organization: z.object({
-            id: z.string(),
-            name: z.string(),
-            slug: z.string(),
-            imageUrl: z.string(),
-            hasImage: z.boolean(),
-          }),
+          organization: z
+            .object({
+              id: z.string(),
+              name: z.string(),
+              slug: z.string(),
+              imageUrl: z.string(),
+              hasImage: z.boolean(),
+              publicMetadata: z.object({ org_id: z.number() }),
+            })
+            .passthrough(),
           role: z.string(),
         }),
       ),
@@ -157,5 +179,5 @@ export function useJWT() {
     .catch(undefined)
     .parse(deocded);
 
-  return { data, ...rest };
+  return { data, rawJWT: jwt, ...rest };
 }

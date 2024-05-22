@@ -9,9 +9,10 @@ export default function useOrgPicker() {
 
   const OrgPicker = (
     <List.Dropdown tooltip="Select Organization" value={selectedOrg} onChange={(val) => setSelectedOrg(val)}>
+      <List.Dropdown.Item value="" title="All Organizations" />
       {data?.memberships.map((membership) => (
         <List.Dropdown.Item
-          value={membership.organization.id}
+          value={membership.organization.publicMetadata.org_id.toString()}
           key={membership.id}
           icon={{ source: membership.organization.imageUrl }}
           title={membership.organization.name}

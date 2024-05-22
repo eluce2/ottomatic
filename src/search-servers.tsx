@@ -1,31 +1,20 @@
 import { ActionPanel, List, Action, Icon, Color } from "@raycast/api";
-import { getJWT } from "./lib/ottomatic";
 import { useServers } from "./lib/servers";
 import useOrgPicker from "./components/org-picker";
 import { ottomaticBaseUrl } from "./lib/constants";
 
 export default function Command() {
   const { OrgPicker, selectedOrg, membership } = useOrgPicker();
-  const { data: servers, isLoading } = useServers(selectedOrg);
+  const { data, isLoading } = useServers();
+  const servers = data?.filter((server) => {
+    if (selectedOrg === "") return true;
+    return server.org_id === parseInt(selectedOrg);
+  });
 
   const currentOrgSlug = membership?.organization.slug;
 
   return (
-    <List
-      isLoading={isLoading}
-      actions={
-        <ActionPanel>
-          <Action
-            title="Log Token"
-            onAction={async () => {
-              const accessToken = await getJWT();
-              console.log(accessToken);
-            }}
-          />
-        </ActionPanel>
-      }
-      searchBarAccessory={OrgPicker}
-    >
+    <List isLoading={isLoading} searchBarAccessory={OrgPicker}>
       {servers?.map((server) => {
         return (
           <List.Item
@@ -42,14 +31,20 @@ export default function Command() {
               <ActionPanel>
                 <Action.OpenInBrowser
                   title="Open in Cloud Console"
-                  url={`${ottomaticBaseUrl}/${currentOrgSlug}/servers/${server.id}`}
+                  url={`${ottomaticBaseUrl}/servers/${currentOrgSlug}/${server.id}`}
                 />
                 <Action title="Refresh Server Info" />
                 <Action.CopyToClipboard title="Copy Server URL" content={server.url} />
                 <Action.OpenInBrowser title="Launch FMS Admin Console" url={`${server.url}/admin-console`} />
                 <Action.OpenInBrowser title="Launch Otto Web Console" url={`${server.url}/otto/`} />
-                <Action.Push title="View Hosted Files" target={<></>} />
-                <Action.Push title="View Clients" target={<></>} />
+                <Action.OpenInBrowser
+                  title="View Hosted Files"
+                  url={`${ottomaticBaseUrl}/servers/${currentOrgSlug}/${server.id}/files`}
+                />
+                <Action.OpenInBrowser
+                  title="View Clients"
+                  url={`${ottomaticBaseUrl}/servers/${currentOrgSlug}/${server.id}/clients`}
+                />
               </ActionPanel>
             }
             accessories={[

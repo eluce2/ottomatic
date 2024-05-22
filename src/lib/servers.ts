@@ -1,6 +1,6 @@
-import { useCachedPromise } from "@raycast/utils";
+import { useCachedPromise, useCachedState } from "@raycast/utils";
 import { fetch } from "cross-fetch";
-import { getJWT } from "./ottomatic";
+import { useJWT } from "./ottomatic";
 import { z } from "zod";
 import { apiBaseUrl } from "./constants";
 
@@ -37,6 +37,7 @@ const filemakerServersRowSchema = z
   .pick({
     id: true,
     url: true,
+    org_id: true,
     name_friendly: true,
     connection_error: true,
     auth_error: true,
@@ -49,13 +50,14 @@ const filemakerServersRowSchema = z
   })
   .extend({ isOttomatic: z.boolean() });
 
-export function useServers(org_id: string | null) {
-  return useCachedPromise(
-    async (org_id: string | null) => {
-      if (!org_id) return [];
-
+type TServer = z.infer<typeof filemakerServersRowSchema>;
+export function useServers() {
+  const { rawJWT } = useJWT();
+  const [servers, setServers] = useCachedState<TServer[]>("servers", []);
+  const qr = useCachedPromise(
+    async () => {
       const data = await fetch(`${apiBaseUrl}/servers`, {
-        headers: { Authorization: `Bearer ${await getJWT()}`, org_id },
+        headers: { Authorization: `Bearer ${rawJWT}` },
       })
         .then((res) => {
           if (!res.ok) throw new Error(res.statusText);
@@ -68,7 +70,9 @@ export function useServers(org_id: string | null) {
 
       return z.object({ data: filemakerServersRowSchema.array() }).parse(data).data;
     },
-    [org_id],
-    { execute: !!org_id || org_id === "", initialData: [], keepPreviousData: true },
+    [],
+    { execute: !!rawJWT, keepPreviousData: true, onData: setServers },
   );
+
+  return { ...qr, data: servers };
 }
