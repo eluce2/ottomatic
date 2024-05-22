@@ -1,3 +1,3 @@
 # Ottomatic
 
-Manage your Ottomatic servers and projects
+Manage your Ottomatic servers and favorites
