@@ -1,31 +1,16 @@
 import { ActionPanel, List, Action, Icon, Color } from "@raycast/api";
-import { getJWT } from "./lib/ottomatic";
 import { useServers } from "./lib/servers";
 import useOrgPicker from "./components/org-picker";
 import { ottomaticBaseUrl } from "./lib/constants";
 
 export default function Command() {
-  const { OrgPicker, selectedOrg, membership } = useOrgPicker();
-  const { data: servers, isLoading } = useServers(selectedOrg);
+  const { OrgPicker, membership } = useOrgPicker();
+  const { data: servers, isLoading } = useServers();
 
   const currentOrgSlug = membership?.organization.slug;
 
   return (
-    <List
-      isLoading={isLoading}
-      actions={
-        <ActionPanel>
-          <Action
-            title="Log Token"
-            onAction={async () => {
-              const accessToken = await getJWT();
-              console.log(accessToken);
-            }}
-          />
-        </ActionPanel>
-      }
-      searchBarAccessory={OrgPicker}
-    >
+    <List isLoading={isLoading} searchBarAccessory={OrgPicker}>
       {servers?.map((server) => {
         return (
           <List.Item
