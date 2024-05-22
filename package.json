@@ -4,7 +4,6 @@
   "title": "Ottomatic",
   "description": "Manage your Ottomatic servers and projects",
   "icon": "command-icon.png",
-  "owner": "proof",
   "author": "eluce2",
   "license": "MIT",
   "commands": [
